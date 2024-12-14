@@ -1,0 +1,279 @@
+//<server>
+#define _WINSOCK_DEPRECATED_NO_WARNINGS
+#define _CRT_SECURE_NO_WARNINGS
+
+#include <winsock2.h>
+#include <stdlib.h>
+#include <stdio.h>
+
+#define BUFSIZE 512
+
+// 소켓 함수 오류 출력 후 종료
+void err_quit(const char* msg)
+{
+	LPVOID lpMsgBuf;
+	FormatMessage(
+		FORMAT_MESSAGE_ALLOCATE_BUFFER |
+		FORMAT_MESSAGE_FROM_SYSTEM,
+		NULL, WSAGetLastError(),
+		MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+		(LPTSTR)&lpMsgBuf, 0, NULL);
+	MessageBox(NULL, (LPCTSTR)lpMsgBuf, msg, MB_ICONERROR);
+	LocalFree(lpMsgBuf);
+	exit(-1);
+}
+
+// 소켓 함수 오류 출력
+void err_display(const char* msg)
+{
+	LPVOID lpMsgBuf;
+	FormatMessage(
+		FORMAT_MESSAGE_ALLOCATE_BUFFER |
+		FORMAT_MESSAGE_FROM_SYSTEM,
+		NULL, WSAGetLastError(),
+		MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+		(LPTSTR)&lpMsgBuf, 0, NULL);
+	printf("[%s] %s", msg, (LPCTSTR)lpMsgBuf);
+	LocalFree(lpMsgBuf);
+}
+
+
+int main(int argc, char* argv[])
+{
+	int retval;
+
+	// 윈속 초기화
+	WSADATA wsa;
+	if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
+		return -1;
+
+	// socket()
+	SOCKET listen_sock = socket(AF_INET, SOCK_STREAM, 0);
+	if (listen_sock == INVALID_SOCKET)
+	{
+		printf("socket() error");
+		return -1;
+	}
+
+	//여기에 넌 블로킹 소켓으로 전환 코드를 추가하세요
+	u_long on = 1;
+	retval = ioctlsocket(listen_sock, FIONBIO, &on);
+	if (retval == SOCKET_ERROR) {
+		//printf("ioctlsocket() error");
+		//return -1;
+		err_quit("ioctlsocket() error");
+	}
+
+	// bind()
+	SOCKADDR_IN serveraddr;
+	ZeroMemory(&serveraddr, sizeof(serveraddr));
+	serveraddr.sin_family = AF_INET;
+	serveraddr.sin_port = htons(9000);
+	serveraddr.sin_addr.s_addr = htonl(INADDR_ANY);
+	retval = bind(listen_sock, (SOCKADDR*)&serveraddr, sizeof(serveraddr));
+	if (retval == SOCKET_ERROR)
+	{
+		//printf("bind() error");
+		//return -1;
+		err_quit("bind() error");
+	}
+
+
+	// listen() 함수 코드를 추가하세요
+	retval = listen(listen_sock, SOMAXCONN);
+	if (retval == SOCKET_ERROR)
+	{
+		//printf("listen() error");
+		//return -1;
+		err_quit("listen() error");
+	}
+
+	// 데이터 통신에 사용할 변수
+	SOCKET client_sock;
+	SOCKADDR_IN clientaddr;
+	int addrlen;
+	char buf[BUFSIZE + 1];
+
+	// 넌블로킹 함수 처리를 위한 무한루프
+	while (1)
+	{
+		//accept() 서버가 클라이언트 연결 수락 부분 코드를 추가하세요.
+		addrlen = sizeof(clientaddr);
+		client_sock = accept(listen_sock, (SOCKADDR*)&clientaddr, &addrlen);
+		if (client_sock == INVALID_SOCKET) {
+			if (WSAGetLastError() != WSAEWOULDBLOCK) {
+				//printf("accept() error");
+				err_display("bind() error");
+			}
+			continue;
+		}
+		printf("\n[TCP서버] 클라이언트 접속: IP주소=%s, 포트번호=%d\n",
+			inet_ntoa(clientaddr.sin_addr), ntohs(clientaddr.sin_port));
+
+		//서버가 연결 수락하면 클라이언트와 통신 부분 코드를 추가하세요.
+		//recv() 클라이언트로부터 데이터 수신 후 출력
+		while (1) {
+			retval = recv(client_sock, buf, BUFSIZE, 0);
+			if (retval == SOCKET_ERROR)
+			{
+				if (WSAGetLastError() != WSAEWOULDBLOCK)
+				{
+					//printf("recv() error");
+					err_display("recv() error");
+					break;
+				}
+			}
+			else if (retval == 0)
+			{
+				break;
+			}
+			else {
+				buf[retval] = '\0';
+					printf("%s", buf);
+			}
+		}
+
+		//closesocket() 클라이언트 소켓 종료 부분 코드를 추가하세요.
+		closesocket(client_sock);
+		printf("\n[TCP서버] 클라이언트 종료: IP주소=%s, 포트번호=%d\n",
+			inet_ntoa(clientaddr.sin_addr), ntohs(clientaddr.sin_port));
+
+	}// 넌블로킹 함수 처리를 위한 while(1) 무한루프 종료
+
+	// closesocket() 대기 소켓 종료
+	closesocket(listen_sock);
+
+	// 윈속 종료
+	WSACleanup();
+	return 0;
+} // main()함수 종료
+
+//<client> server와 다른 새 프로젝트를 만듦.
+#define _WINSOCK_DEPRECATED_NO_WARNINGS
+
+#include <winsock2.h>
+#include <stdlib.h>
+#include <stdio.h>
+
+#define BUFSIZE 512
+
+// 소켓 함수 오류 출력 후 종료
+void err_quit(const char* msg)
+{
+	LPVOID lpMsgBuf;
+	FormatMessage(
+		FORMAT_MESSAGE_ALLOCATE_BUFFER |
+		FORMAT_MESSAGE_FROM_SYSTEM,
+		NULL, WSAGetLastError(),
+		MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+		(LPTSTR)&lpMsgBuf, 0, NULL);
+	MessageBox(NULL, (LPCTSTR)lpMsgBuf, msg, MB_ICONERROR);
+	LocalFree(lpMsgBuf);
+	exit(-1);
+}
+
+// 소켓 함수 오류 출력
+void err_display(const char* msg)
+{
+	LPVOID lpMsgBuf;
+	FormatMessage(
+		FORMAT_MESSAGE_ALLOCATE_BUFFER |
+		FORMAT_MESSAGE_FROM_SYSTEM,
+		NULL, WSAGetLastError(),
+		MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+		(LPTSTR)&lpMsgBuf, 0, NULL);
+	printf("[%s] %s", msg, (LPCTSTR)lpMsgBuf);
+	LocalFree(lpMsgBuf);
+}
+
+// 사용자 정의 데이터 수신 함수
+int recvn(SOCKET s, char* buf, int len, int flags)
+{
+	int received;
+	char* ptr = buf;
+	int left = len;
+
+	while (left > 0) {
+		received = recv(s, ptr, left, flags);
+		if (received == SOCKET_ERROR)
+			return SOCKET_ERROR;
+		else if (received == 0)
+			break;
+		left -= received;
+		ptr += received;
+	}
+
+	return (len - left);
+}
+
+int main(int argc, char* argv[])
+{
+	int retval;
+
+	// 윈속 초기화
+	WSADATA wsa;
+	if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
+		return -1;
+
+	// socket()
+	SOCKET sock = socket(AF_INET, SOCK_STREAM, 0);
+	if (sock == INVALID_SOCKET) err_quit("socket()");
+
+	// connect()
+	SOCKADDR_IN serveraddr;
+	ZeroMemory(&serveraddr, sizeof(serveraddr));
+	serveraddr.sin_family = AF_INET;
+	serveraddr.sin_port = htons(9000);
+	serveraddr.sin_addr.s_addr = inet_addr("127.0.0.1");
+	retval = connect(sock, (SOCKADDR*)&serveraddr, sizeof(serveraddr));
+	if (retval == SOCKET_ERROR) err_quit("connect()");
+
+	// 데이터 통신에 사용할 변수
+	char buf[BUFSIZE + 1];
+	int len;
+
+	// 서버와 데이터 통신
+	while (1) {
+		// 데이터 입력
+		ZeroMemory(buf, sizeof(buf));
+		printf("\n[보낼 데이터] ");
+		if (fgets(buf, BUFSIZE + 1, stdin) == NULL)
+			break;
+
+		// '\n' 문자 제거
+		len = strlen(buf);
+		if (buf[len - 1] == '\n')
+			buf[len - 1] = '\0';
+		if (strlen(buf) == 0)
+			break;
+
+		// 데이터 보내기
+		retval = send(sock, buf, strlen(buf), 0);
+		if (retval == SOCKET_ERROR) {
+			err_display("send()");
+			break;
+		}
+		printf("[TCP 클라이언트] %d바이트를 보냈습니다.\n", retval);
+
+		// 데이터 받기
+		retval = recvn(sock, buf, retval, 0);
+		if (retval == SOCKET_ERROR) {
+			err_display("recv()");
+			break;
+		}
+		else if (retval == 0)
+			break;
+
+		// 받은 데이터 출력
+		buf[retval] = '\0';
+		printf("[TCP 클라이언트] %d바이트를 받았습니다.\n", retval);
+		printf("[받은 데이터] %s\n", buf);
+	}
+
+	// closesocket()
+	closesocket(sock);
+
+	// 윈속 종료
+	WSACleanup();
+	return 0;
+}
